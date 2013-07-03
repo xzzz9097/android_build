@@ -878,6 +878,8 @@ else
         build/target/product/security/bacon
 endif
 
+PRODUCT_EXTRA_RECOVERY_KEYS += build/target/product/security/pa
+
 # Generate a file containing the keys that will be read by the
 # recovery binary.
 RECOVERY_INSTALL_OTA_KEYS := \
