@@ -68,8 +68,11 @@ TARGET_NO_UNDEFINED_LDFLAGS := -Wl,--no-undefined
 ifeq ($(TARGET_USE_O3),true)
 TARGET_arm_CFLAGS :=    -O3 \
                         -fomit-frame-pointer \
+                        -pipe                \
+                        -fmodulo-sched       \
+                        -fmodulo-sched-allow-regmoves \
                         -fstrict-aliasing    \
-                        -fno-tree-vectorize
+                        -funswitch-loops
 else
 TARGET_arm_CFLAGS :=    -Os \
                         -fomit-frame-pointer \
@@ -83,15 +86,15 @@ endif
 ifeq ($(ARCH_ARM_HAVE_THUMB_SUPPORT),true)
     ifeq ($(TARGET_USE_O3),true)
     TARGET_thumb_CFLAGS :=  -mthumb \
-                            -O3 \
-                            -fomit-frame-pointer \
-                            -fno-strict-aliasing \
-                            -fno-tree-vectorize
+                        -O3 \
+                        -fomit-frame-pointer \
+                        -fmodulo-sched       \
+                        -fmodulo-sched-allow-regmoves \
+                        -fstrict-aliasing
     else
     TARGET_thumb_CFLAGS :=  -mthumb \
                             -O2 \
-                            -fomit-frame-pointer \
-                            -fno-strict-aliasing
+                            -fomit-frame-pointer
     endif
 else
 TARGET_thumb_CFLAGS := $(TARGET_arm_CFLAGS)
@@ -107,7 +110,7 @@ endif
 # with -mlong-calls.  When built at -O0, those libraries are
 # too big for a thumb "BL <label>" to go from one end to the other.
 ifeq ($(FORCE_ARM_DEBUGGING),true)
-  TARGET_arm_CFLAGS += -fno-omit-frame-pointer -fno-strict-aliasing
+  TARGET_arm_CFLAGS += -fno-omit-frame-pointer
   TARGET_thumb_CFLAGS += -marm -fno-omit-frame-pointer
 endif
 
