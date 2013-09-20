@@ -73,7 +73,7 @@ TARGET_arm_CFLAGS :=    -O3 \
 else
 TARGET_arm_CFLAGS :=    -Os \
                         -fomit-frame-pointer \
-                        -fstrict-aliasing    \
+                        -fno-strict-aliasing    \
                         -funswitch-loops
 endif
 # Modules can choose to compile some source as thumb. As
