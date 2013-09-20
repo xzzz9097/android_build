@@ -22,10 +22,12 @@ PRODUCT_POLICY := android.policy_phone
 PRODUCT_PACKAGES := \
     DeskClock \
     Bluetooth \
+    BluetoothExt \
     Calculator \
     Calendar \
     CertInstaller \
     DrmProvider \
+    DSPManager \
     Email \
     Exchange2 \
     FusedLocation \
