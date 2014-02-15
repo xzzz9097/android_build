@@ -68,16 +68,23 @@ endif
 
 TARGET_NO_UNDEFINED_LDFLAGS := -Wl,--no-undefined
 
-TARGET_arm_CFLAGS :=    -O2 \
+TARGET_arm_CFLAGS :=    -O3 \
                         -fomit-frame-pointer \
                         -fstrict-aliasing    \
-                        -funswitch-loops
+                        -fno-tree-vectorize \
+                        -fno-inline-functions \
+                        -Wno-error=strict-aliasing \
+                        -fno-unswitch-loops
 
 # Modules can choose to compile some source as thumb.
 TARGET_thumb_CFLAGS :=  -mthumb \
-                        -Os \
+						-O3 \
                         -fomit-frame-pointer \
-                        -fno-strict-aliasing
+                        -fstrict-aliasing    \
+                        -fno-tree-vectorize \
+                        -fno-inline-functions \
+                        -Wno-error=strict-aliasing \
+                        -fno-unswitch-loops
 
 ifneq ($(filter 4.8 4.8.% 4.9 4.9.%, $(TARGET_GCC_VERSION)),)
 TARGET_arm_CFLAGS +=  -Wno-unused-parameter \
@@ -99,7 +106,7 @@ endif
 # with -mlong-calls.  When built at -O0, those libraries are
 # too big for a thumb "BL <label>" to go from one end to the other.
 ifeq ($(FORCE_ARM_DEBUGGING),true)
-  TARGET_arm_CFLAGS += -fno-omit-frame-pointer -fno-strict-aliasing
+  TARGET_arm_CFLAGS += -fno-omit-frame-pointer
   TARGET_thumb_CFLAGS += -marm -fno-omit-frame-pointer
 endif
 
