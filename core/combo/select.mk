@@ -47,7 +47,7 @@ $(combo_target)HAVE_STRLCAT := 0
 $(combo_target)HAVE_KERNEL_MODULES := 0
 
 $(combo_target)GLOBAL_CFLAGS := -fno-exceptions -Wno-multichar
-$(combo_target)RELEASE_CFLAGS := -O3 -g -fno-tree-vectorize -fno-inline-functions -fno-unswitch-loops -fstrict-aliasing -Wno-error=strict-aliasing
+$(combo_target)RELEASE_CFLAGS := -Os -g -fno-tree-vectorize -fno-inline-functions -fno-unswitch-loops -fstrict-aliasing -Wno-error=strict-aliasing
 $(combo_target)GLOBAL_LDFLAGS :=
 $(combo_target)GLOBAL_ARFLAGS := crsP
 
