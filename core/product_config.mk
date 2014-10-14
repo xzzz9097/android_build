@@ -179,19 +179,20 @@ include $(BUILD_SYSTEM)/node_fns.mk
 include $(BUILD_SYSTEM)/product.mk
 include $(BUILD_SYSTEM)/device.mk
 
-ifneq ($(strip $(TARGET_BUILD_APPS)),)
-# An unbundled app build needs only the core product makefiles.
-all_product_configs := $(call get-product-makefiles,\
-    $(SRC_TARGET_DIR)/product/AndroidProducts.mk)
+# A PA build needs only the PA product makefiles.
+ifneq ($(PA_BUILD),)
+  all_product_configs := $(shell ls vendor/pa/products/pa_$(PA_BUILD).mk)
 else
-  ifneq ($(PA_BUILD),)
-    all_product_configs := $(shell ls device/*/$(PA_BUILD)/cm.mk)
+  ifneq ($(strip $(TARGET_BUILD_APPS)),)
+  # An unbundled app build needs only the core product makefiles.
+  all_product_configs := $(call get-product-makefiles,\
+      $(SRC_TARGET_DIR)/product/AndroidProducts.mk)
   else
     # Read in all of the product definitions specified by the AndroidProducts.mk
     # files in the tree.
     all_product_configs := $(get-all-product-makefiles)
-  endif
-endif
+  endif # TARGET_BUILD_APPS
+endif # PA_BUILD
 
 ifeq ($(PA_BUILD),)
 # Find the product config makefile for the current product.
