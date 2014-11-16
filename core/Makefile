@@ -253,7 +253,7 @@ endif
 			TARGET_CPU_ABI="$(TARGET_CPU_ABI)" \
 			TARGET_CPU_ABI2="$(TARGET_CPU_ABI2)" \
 			TARGET_AAPT_CHARACTERISTICS="$(TARGET_AAPT_CHARACTERISTICS)" \
-			$(PRODUCT_BUILD_PROP_OVERRIDES) \
+      $(PRODUCT_BUILD_PROP_OVERRIDES) \
 	        bash $(BUILDINFO_SH) >> $@
 	$(hide) $(foreach file,$(system_prop_file), \
 		if [ -f "$(file)" ]; then \
@@ -1250,6 +1250,7 @@ userdatatarball-nodeps: $(FS_GET_STATS)
 
 # -----------------------------------------------------------------
 # cache partition image
+ifneq ($(skip_cache.img),true)
 ifdef BOARD_CACHEIMAGE_FILE_SYSTEM_TYPE
 INTERNAL_CACHEIMAGE_FILES := \
     $(filter $(TARGET_OUT_CACHE)/%,$(ALL_DEFAULT_INSTALLED_MODULES))
@@ -1279,6 +1280,8 @@ cacheimage-nodeps: | $(INTERNAL_USERIMAGES_DEPS)
 	$(build-cacheimage-target)
 
 endif # BOARD_CACHEIMAGE_FILE_SYSTEM_TYPE
+
+endif #skip cache image
 
 
 # -----------------------------------------------------------------
