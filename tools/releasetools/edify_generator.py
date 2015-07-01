@@ -150,13 +150,7 @@ class EdifyGenerator(object):
     self.script.append(('run_program("/tmp/install/bin/backuptool.sh", "%s");' % command))
 
   def ValidateSignatures(self, command):
-    if command == "cleanup":
-        self.script.append('delete("/system/bin/otasigcheck.sh");')
-    else:
-        self.script.append('package_extract_file("system/bin/otasigcheck.sh", "/tmp/otasigcheck.sh");')
-        self.script.append('package_extract_file("META-INF/co/paranoidandroid/releasekey", "/tmp/releasekey");')
-        self.script.append('set_metadata("/tmp/otasigcheck.sh", "uid", 0, "gid", 0, "mode", 0755);')
-        self.script.append('run_program("/tmp/otasigcheck.sh") == "0" || abort("Can\'t install this package on top of incompatible data. Please try another package or run a factory reset");')
+    self.script.append('run_program("/tmp/otasigcheck.sh") != "31744" || abort("Can\'t install this package on top of incompatible data. Please try another package or run a factory reset");')
 
   def ShowProgress(self, frac, dur):
     """Update the progress bar, advancing it over 'frac' over the next

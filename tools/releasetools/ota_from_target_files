@@ -140,7 +140,7 @@ OPTIONS.block_based = False
 OPTIONS.updater_binary = None
 OPTIONS.oem_source = None
 OPTIONS.fallback_to_full = True
-OPTIONS.backuptool = True
+OPTIONS.backuptool = False
 OPTIONS.override_device = 'auto'
 OPTIONS.recovery = False
 OPTIONS.override_prop = False
@@ -480,7 +480,6 @@ def GetImage(which, tmpdir, info_dict):
 
   return sparse_img.SparseImage(path, mappath)
 
-
 def CopyInstallTools(output_zip):
   oldcwd = os.getcwd()
   os.chdir(os.getenv('OUT'))
@@ -489,7 +488,6 @@ def CopyInstallTools(output_zip):
       p = os.path.join(root, f)
       output_zip.write(p, p)
   os.chdir(oldcwd)
-
 
 def WriteFullOTAPackage(input_zip, output_zip):
   # TODO: how to determine this?  We don't know what version it will
@@ -582,6 +580,7 @@ def WriteFullOTAPackage(input_zip, output_zip):
   else if get_stage("%(bcb_dev)s") == "3/3" then
   """ % bcb_dev)
 
+  script.AppendExtra("ifelse(is_mounted(\"/system\"), unmount(\"/system\"));")
   device_specific.FullOTA_InstallBegin()
 
   CopyInstallTools(output_zip)
@@ -601,10 +600,6 @@ def WriteFullOTAPackage(input_zip, output_zip):
   if HasVendorPartition(input_zip):
     system_progress -= 0.1
 
-  if block_based:
-    common.ZipWriteStr(output_zip, "system/bin/otasigcheck.sh",
-                   ""+input_zip.read("SYSTEM/bin/otasigcheck.sh"))
-
   script.AppendExtra("if is_mounted(\"/data\") then")
   script.ValidateSignatures("data")
   script.AppendExtra("else")
@@ -612,6 +607,20 @@ def WriteFullOTAPackage(input_zip, output_zip):
   script.ValidateSignatures("data")
   script.Unmount("/data")
   script.AppendExtra("endif;")
+
+  builddate = time.strftime("%x");
+  product = GetBuildProp("ro.pa.device", OPTIONS.info_dict);
+  b = "Build date: %s"%(builddate);
+  b2 = b.center(32, ' ');
+  d = "Device: %s"%(product);
+  d2 = d.center(32, ' ');
+
+  script.Print("**********************************");
+  script.Print("*             AOSPA-L            *");
+  script.Print("*                                *");
+  script.Print("*" + b2 + "*");
+  script.Print("*" + d2 + "*");
+  script.Print("**********************************");
 
   if "selinux_fc" in OPTIONS.info_dict:
     WritePolicyConfig(OPTIONS.info_dict["selinux_fc"], output_zip)
@@ -676,12 +685,6 @@ def WriteFullOTAPackage(input_zip, output_zip):
 
   common.CheckSize(boot_img.data, "boot.img", OPTIONS.info_dict)
   common.ZipWriteStr(output_zip, "boot.img", boot_img.data)
-
-  if block_based:
-    script.Mount("/system")
-  script.ValidateSignatures("cleanup")
-  if block_based:
-    script.Unmount("/system")
 
   device_specific.FullOTA_PostValidate()
 
@@ -831,8 +834,16 @@ def WriteBlockIncrementalOTAPackage(target_zip, source_zip, output_zip):
 
   system_src = GetImage("system", OPTIONS.source_tmp, OPTIONS.source_info_dict)
   system_tgt = GetImage("system", OPTIONS.target_tmp, OPTIONS.target_info_dict)
+
+  blockimgdiff_version = 1
+  if OPTIONS.info_dict:
+    blockimgdiff_version = max(
+        int(i) for i in
+        OPTIONS.info_dict.get("blockimgdiff_versions", "1").split(","))
+
   system_diff = common.BlockDifference("system", system_tgt, system_src,
-                                       check_first_block=True)
+                                       check_first_block=True,
+                                       version=blockimgdiff_version)
 
   if HasVendorPartition(target_zip):
     if not HasVendorPartition(source_zip):
@@ -840,7 +851,8 @@ def WriteBlockIncrementalOTAPackage(target_zip, source_zip, output_zip):
     vendor_src = GetImage("vendor", OPTIONS.source_tmp, OPTIONS.source_info_dict)
     vendor_tgt = GetImage("vendor", OPTIONS.target_tmp, OPTIONS.target_info_dict)
     vendor_diff = common.BlockDifference("vendor", vendor_tgt, vendor_src,
-                                         check_first_block=True)
+                                         check_first_block=True,
+                                         version=blockimgdiff_version)
   else:
     vendor_diff = None
 
@@ -901,11 +913,22 @@ else if get_stage("%(bcb_dev)s") != "3/3" then
   device_specific.IncrementalOTA_VerifyBegin()
 
   if oem_props is None:
-    script.AssertSomeFingerprint(source_fp, target_fp)
+    # When blockimgdiff version is less than 3 (non-resumable block-based OTA),
+    # patching on a device that's already on the target build will damage the
+    # system. Because operations like move don't check the block state, they
+    # always apply the changes unconditionally.
+    if blockimgdiff_version <= 2:
+      script.AssertSomeFingerprint(source_fp)
+    else:
+      script.AssertSomeFingerprint(source_fp, target_fp)
   else:
-    script.AssertSomeThumbprint(
-        GetBuildProp("ro.build.thumbprint", OPTIONS.target_info_dict),
-        GetBuildProp("ro.build.thumbprint", OPTIONS.source_info_dict))
+    if blockimgdiff_version <= 2:
+      script.AssertSomeThumbprint(
+          GetBuildProp("ro.build.thumbprint", OPTIONS.source_info_dict))
+    else:
+      script.AssertSomeThumbprint(
+          GetBuildProp("ro.build.thumbprint", OPTIONS.target_info_dict),
+          GetBuildProp("ro.build.thumbprint", OPTIONS.source_info_dict))
 
   if updating_boot:
     boot_type, boot_device = common.GetTypeAndDevice("/boot", OPTIONS.info_dict)
@@ -1276,19 +1299,24 @@ else if get_stage("%(bcb_dev)s") != "3/3" then
     so_far += vendor_diff.EmitVerification(script)
 
   if updating_boot:
+    boot_type, boot_device = common.GetTypeAndDevice("/boot", OPTIONS.info_dict)
     d = common.Difference(target_boot, source_boot)
     _, _, d = d.ComputePatch()
-    print "boot      target: %d  source: %d  diff: %d" % (
+    if d is None:
+      include_full_boot = True
+      common.ZipWriteStr(output_zip, "boot.img", target_boot.data)
+    else:
+      include_full_boot = False
+
+      print "boot      target: %d  source: %d  diff: %d" % (
         target_boot.size, source_boot.size, len(d))
 
-    common.ZipWriteStr(output_zip, "patch/boot.img.p", d)
+      common.ZipWriteStr(output_zip, "patch/boot.img.p", d)
 
-    boot_type, boot_device = common.GetTypeAndDevice("/boot", OPTIONS.info_dict)
-
-    script.PatchCheck("%s:%s:%d:%s:%d:%s" %
-                      (boot_type, boot_device,
-                       source_boot.size, source_boot.sha1,
-                       target_boot.size, target_boot.sha1))
+      script.PatchCheck("%s:%s:%d:%s:%d:%s" %
+                        (boot_type, boot_device,
+                         source_boot.size, source_boot.sha1,
+                         target_boot.size, target_boot.sha1))
     so_far += source_boot.size
 
   size = []
@@ -1337,20 +1365,23 @@ else
 
   if not OPTIONS.two_step:
     if updating_boot:
-      # Produce the boot image by applying a patch to the current
-      # contents of the boot partition, and write it back to the
-      # partition.
-      script.Print("Patching boot image...")
-      script.ApplyPatch("%s:%s:%d:%s:%d:%s"
-                        % (boot_type, boot_device,
-                           source_boot.size, source_boot.sha1,
-                           target_boot.size, target_boot.sha1),
-                        "-",
-                        target_boot.size, target_boot.sha1,
-                        source_boot.sha1, "patch/boot.img.p")
-      so_far += target_boot.size
-      script.SetProgress(so_far / total_patch_size)
-      print "boot image changed; including."
+      if include_full_boot:
+        print "boot image changed; including full."
+        script.Print("Installing boot image...")
+        script.WriteRawImage("/boot", "boot.img")
+      else:
+        # Produce the boot image by applying a patch to the current
+        # contents of the boot partition, and write it back to the
+        # partition.
+        print "boot image changed; including patch."
+        script.Print("Patching boot image...")
+        script.ApplyPatch("%s:%s:%d:%s:%d:%s"
+                          % (boot_type, boot_device,
+                             source_boot.size, source_boot.sha1,
+                             target_boot.size, target_boot.sha1),
+                          "-",
+                          target_boot.size, target_boot.sha1,
+                          source_boot.sha1, "patch/boot.img.p")
     else:
       print "boot image unchanged; skipping."
 
